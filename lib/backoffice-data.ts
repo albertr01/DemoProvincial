@@ -9,11 +9,13 @@ export interface BackofficeSettings {
     juridica: { [key: string]: { [field: string]: boolean } }
   }
   visibleSections: string[] // Added visibleSections to interface
-  agencies: {
-    id: string
-    maxAppointmentsPerDay: number
-    availableHours: string[]
-  }[]
+  agencies: ParameterizedAgencySettings[]
+}
+
+export interface ParameterizedAgencySettings {
+  id: string
+  maxAppointmentsPerDay: number
+  availableHours: string[]
 }
 
 export interface ClientApplication {
@@ -42,16 +44,49 @@ export interface ConfirmedAppointment {
   createdAt: number
   pdfUrl?: string
   clientId?: string // Link to client application
+  status: "agendada" | "procesada" | "cancelada" | "completada" // Added status tracking
+  cancelReason?: string // Added cancel reason
+  processedAt?: number // Added processed timestamp
+  canceledAt?: number // Added canceled timestamp
+  completedAt?: number // Added completed timestamp
+}
+
+// Enhanced tracking interfaces
+export interface ClientTrackingMetrics {
+  totalFichas: number
+  fichasIncompletas: number
+  fichasPendientes: number
+  fichasAprobadas: number
+  fichasRechazadas: number
+  fichasHoy: number
+  fichasEstaSemana: number
+  fichasEsteMes: number
+  promedioTiempoProcesamiento: number // in hours
+  tasaAprobacion: number // percentage
+}
+
+export interface AppointmentTrackingMetrics {
+  totalCitas: number
+  citasAgendadas: number
+  citasProcesadas: number
+  citasCanceladas: number
+  citasCompletadas: number
+  citasHoy: number
+  citasEstaSemana: number
+  citasEsteMes: number
+  promedioTiempoAtencion: number // in minutes
+  tasaCompletacion: number // percentage
+  motivosCancelacion: { [reason: string]: number }
 }
 
 // --- Mock Data ---
 
 // Mock data for ALL_BBVA_AGENCIES
 export const ALL_BBVA_AGENCIES = [
-  { id: "agency-1", nombre: "Agencia Principal Caracas", direccion: "Av. Francisco de Miranda, Caracas" },
-  { id: "agency-2", nombre: "Agencia Valencia Centro", direccion: "Av. Bolívar, Valencia" },
-  { id: "agency-3", nombre: "Agencia Maracaibo Norte", direccion: "Av. 15 Delicias, Maracaibo" },
-  { id: "agency-4", nombre: "Agencia Barquisimeto Este", direccion: "Av. Lara, Barquisimeto" },
+  { id: "agency-1", nombre: "Agencia Principal Caracas", direccion: "Av. Francisco de Miranda, Caracas", estado: "Distrito Capital" },
+  { id: "agency-2", nombre: "Agencia Valencia Centro", direccion: "Av. Bolívar, Valencia", estado: "Carabobo" },
+  { id: "agency-3", nombre: "Agencia Maracaibo Norte", direccion: "Av. 15 Delicias, Maracaibo", estado: "Zulia" },
+  { id: "agency-4", nombre: "Agencia Barquisimeto Este", direccion: "Av. Lara, Barquisimeto", estado: "Lara" },
 ]
 
 // Default backoffice settings
@@ -226,7 +261,7 @@ const defaultBackofficeSettings: BackofficeSettings = {
   ],
 }
 
-// Mock client applications data
+// Enhanced mock client applications data
 const mockClientApplications: ClientApplication[] = [
   {
     id: "client-1-natural",
@@ -291,7 +326,7 @@ const mockClientApplications: ClientApplication[] = [
     },
     createdAt: Date.now() - 86400000 * 5, // 5 days ago
     lastUpdated: Date.now() - 86400000 * 2, // 2 days ago
-    progressPercentage: 75, // Example: not 100% complete
+    progressPercentage: 75,
     uploadedDocuments: [
       { name: "Cedula_Juan_Perez.pdf", url: "/placeholder.svg?height=300&width=200" },
       { name: "Recibo_Nomina_Juan.pdf", url: "/placeholder.svg?height=300&width=200" },
@@ -398,7 +433,7 @@ const mockClientApplications: ClientApplication[] = [
     },
     createdAt: Date.now() - 86400000 * 10, // 10 days ago
     lastUpdated: Date.now(),
-    progressPercentage: 100, // This one is 100% complete
+    progressPercentage: 100,
     uploadedDocuments: [
       { name: "RIF_EmpresaXYZ.pdf", url: "/placeholder.svg?height=300&width=200" },
       { name: "Acta_Constitutiva_XYZ.pdf", url: "/placeholder.svg?height=300&width=200" },
@@ -467,19 +502,44 @@ const mockClientApplications: ClientApplication[] = [
     },
     createdAt: Date.now() - 86400000 * 20, // 20 days ago
     lastUpdated: Date.now() - 86400000 * 15, // 15 days ago
-    progressPercentage: 100, // 100% complete
+    progressPercentage: 100,
     uploadedDocuments: [
       { name: "Pasaporte_Maria_Garcia.pdf", url: "/placeholder.svg?height=300&width=200" },
       { name: "Declaracion_Impuestos_Maria.pdf", url: "/placeholder.svg?height=300&width=200" },
     ],
   },
+  // Additional mock data for better tracking
+  {
+    id: "client-4-natural-rejected",
+    userId: "user789",
+    name: "Carlos Mendoza",
+    type: "natural",
+    status: "rechazada",
+    formData: {},
+    createdAt: Date.now() - 86400000 * 3, // 3 days ago
+    lastUpdated: Date.now() - 86400000 * 1, // 1 day ago
+    progressPercentage: 90,
+    uploadedDocuments: [],
+  },
+  {
+    id: "client-5-juridica-today",
+    userId: "empresa123",
+    name: "Innovación Tech S.A.",
+    type: "juridica",
+    status: "incompleta",
+    formData: {},
+    createdAt: Date.now() - 3600000 * 2, // 2 hours ago
+    lastUpdated: Date.now() - 3600000 * 1, // 1 hour ago
+    progressPercentage: 45,
+    uploadedDocuments: [],
+  },
 ]
 
-// Mock confirmed appointments data
+// Enhanced mock confirmed appointments data with status tracking
 const mockConfirmedAppointments: ConfirmedAppointment[] = [
   {
     id: "appt-1",
-    userId: "empresaXYZ", // Linked to client-2-juridica
+    userId: "empresaXYZ",
     clientId: "client-2-juridica",
     clientType: "juridica",
     fecha: "2025-06-15",
@@ -490,10 +550,11 @@ const mockConfirmedAppointments: ConfirmedAppointment[] = [
     bankEmail: "citas.juridicas@bbva.com",
     createdAt: Date.now() - 86400000 * 9,
     pdfUrl: "/placeholder.svg?height=300&width=200",
+    status: "agendada",
   },
   {
     id: "appt-2",
-    userId: "user456", // Linked to client-3-natural-approved
+    userId: "user456",
     clientId: "client-3-natural-approved",
     clientType: "natural",
     fecha: "2025-06-18",
@@ -504,13 +565,63 @@ const mockConfirmedAppointments: ConfirmedAppointment[] = [
     bankEmail: "citas@bbva.com",
     createdAt: Date.now() - 86400000 * 14,
     pdfUrl: "/placeholder.svg?height=300&width=200",
+    status: "completada",
+    completedAt: Date.now() - 86400000 * 12,
+  },
+  {
+    id: "appt-3",
+    userId: "user111",
+    clientId: "client-extra-1",
+    clientType: "natural",
+    fecha: "2025-06-10",
+    hora: "09:00",
+    agenciaNombre: "Agencia Principal Caracas",
+    agenciaDireccion: "Av. Francisco de Miranda, Caracas",
+    clientEmail: "cliente@example.com",
+    bankEmail: "citas@bbva.com",
+    createdAt: Date.now() - 86400000 * 7,
+    pdfUrl: "/placeholder.svg?height=300&width=200",
+    status: "procesada",
+    processedAt: Date.now() - 86400000 * 5,
+  },
+  {
+    id: "appt-4",
+    userId: "user222",
+    clientId: "client-extra-2",
+    clientType: "natural",
+    fecha: "2025-06-12",
+    hora: "14:00",
+    agenciaNombre: "Agencia Barquisimeto Este",
+    agenciaDireccion: "Av. Lara, Barquisimeto",
+    clientEmail: "otro@example.com",
+    bankEmail: "citas@bbva.com",
+    createdAt: Date.now() - 86400000 * 5,
+    pdfUrl: "/placeholder.svg?height=300&width=200",
+    status: "cancelada",
+    canceledAt: Date.now() - 86400000 * 3,
+    cancelReason: "Cliente no disponible",
+  },
+  {
+    id: "appt-5",
+    userId: "user333",
+    clientId: "client-extra-3",
+    clientType: "juridica",
+    fecha: new Date().toISOString().split('T')[0], // Today
+    hora: "15:00",
+    agenciaNombre: "Agencia Principal Caracas",
+    agenciaDireccion: "Av. Francisco de Miranda, Caracas",
+    clientEmail: "hoy@example.com",
+    bankEmail: "citas@bbva.com",
+    createdAt: Date.now() - 86400000 * 1,
+    pdfUrl: "/placeholder.svg?height=300&width=200",
+    status: "agendada",
   },
 ]
 
 // --- Utility Functions ---
 
 export function getBackofficeSettings(): BackofficeSettings {
-  if (typeof window === "undefined") return defaultBackofficeSettings // For server-side rendering
+  if (typeof window === "undefined") return defaultBackofficeSettings
   const settings = localStorage.getItem("bbva_backoffice_settings")
   return settings ? JSON.parse(settings) : defaultBackofficeSettings
 }
@@ -521,9 +632,8 @@ export function saveBackofficeSettings(settings: BackofficeSettings) {
 }
 
 export function getClientApplications(): ClientApplication[] {
-  if (typeof window === "undefined") return mockClientApplications // For server-side rendering
+  if (typeof window === "undefined") return mockClientApplications
   const clients = localStorage.getItem("bbva_client_applications")
-  // Initialize with mock data if no data exists in localStorage
   if (!clients) {
     localStorage.setItem("bbva_client_applications", JSON.stringify(mockClientApplications))
     return mockClientApplications
@@ -557,7 +667,7 @@ export function updateClientApplicationStatus(clientId: string, status: ClientAp
 }
 
 export function getConfirmedAppointments(): ConfirmedAppointment[] {
-  if (typeof window === "undefined") return mockConfirmedAppointments // For server-side rendering
+  if (typeof window === "undefined") return mockConfirmedAppointments
   const appointments = localStorage.getItem("bbva_all_appointments")
   if (!appointments) {
     localStorage.setItem("bbva_all_appointments", JSON.stringify(mockConfirmedAppointments))
@@ -566,16 +676,135 @@ export function getConfirmedAppointments(): ConfirmedAppointment[] {
   return JSON.parse(appointments)
 }
 
+export function updateAppointmentStatus(appointmentId: string, status: ConfirmedAppointment["status"], reason?: string): boolean {
+  if (typeof window === "undefined") return false
+  const appointments = getConfirmedAppointments()
+  const appointmentIndex = appointments.findIndex((a) => a.id === appointmentId)
+  if (appointmentIndex !== -1) {
+    appointments[appointmentIndex].status = status
+    const now = Date.now()
+    
+    switch (status) {
+      case "procesada":
+        appointments[appointmentIndex].processedAt = now
+        break
+      case "cancelada":
+        appointments[appointmentIndex].canceledAt = now
+        appointments[appointmentIndex].cancelReason = reason
+        break
+      case "completada":
+        appointments[appointmentIndex].completedAt = now
+        break
+    }
+    
+    localStorage.setItem("bbva_all_appointments", JSON.stringify(appointments))
+    return true
+  }
+  return false
+}
+
+// Enhanced tracking functions
+export function getClientTrackingMetrics(): ClientTrackingMetrics {
+  const clients = getClientApplications()
+  const now = Date.now()
+  const today = new Date().setHours(0, 0, 0, 0)
+  const weekAgo = now - (7 * 24 * 60 * 60 * 1000)
+  const monthAgo = now - (30 * 24 * 60 * 60 * 1000)
+
+  const totalFichas = clients.length
+  const fichasIncompletas = clients.filter(c => c.status === "incompleta").length
+  const fichasPendientes = clients.filter(c => c.status === "pendiente_aprobacion").length
+  const fichasAprobadas = clients.filter(c => c.status === "aprobada").length
+  const fichasRechazadas = clients.filter(c => c.status === "rechazada").length
+  
+  const fichasHoy = clients.filter(c => c.createdAt >= today).length
+  const fichasEstaSemana = clients.filter(c => c.createdAt >= weekAgo).length
+  const fichasEsteMes = clients.filter(c => c.createdAt >= monthAgo).length
+
+  // Calculate average processing time for approved/rejected clients
+  const processedClients = clients.filter(c => c.status === "aprobada" || c.status === "rechazada")
+  const promedioTiempoProcesamiento = processedClients.length > 0 
+    ? processedClients.reduce((acc, client) => acc + (client.lastUpdated - client.createdAt), 0) / processedClients.length / (1000 * 60 * 60) // Convert to hours
+    : 0
+
+  const tasaAprobacion = processedClients.length > 0 
+    ? (fichasAprobadas / processedClients.length) * 100 
+    : 0
+
+  return {
+    totalFichas,
+    fichasIncompletas,
+    fichasPendientes,
+    fichasAprobadas,
+    fichasRechazadas,
+    fichasHoy,
+    fichasEstaSemana,
+    fichasEsteMes,
+    promedioTiempoProcesamiento,
+    tasaAprobacion,
+  }
+}
+
+export function getAppointmentTrackingMetrics(): AppointmentTrackingMetrics {
+  const appointments = getConfirmedAppointments()
+  const now = Date.now()
+  const today = new Date().toISOString().split('T')[0]
+  const weekAgo = now - (7 * 24 * 60 * 60 * 1000)
+  const monthAgo = now - (30 * 24 * 60 * 60 * 1000)
+
+  const totalCitas = appointments.length
+  const citasAgendadas = appointments.filter(a => a.status === "agendada").length
+  const citasProcesadas = appointments.filter(a => a.status === "procesada").length
+  const citasCanceladas = appointments.filter(a => a.status === "cancelada").length
+  const citasCompletadas = appointments.filter(a => a.status === "completada").length
+
+  const citasHoy = appointments.filter(a => a.fecha === today).length
+  const citasEstaSemana = appointments.filter(a => a.createdAt >= weekAgo).length
+  const citasEsteMes = appointments.filter(a => a.createdAt >= monthAgo).length
+
+  // Calculate average attention time for completed appointments
+  const completedAppointments = appointments.filter(a => a.status === "completada" && a.completedAt)
+  const promedioTiempoAtencion = completedAppointments.length > 0
+    ? completedAppointments.reduce((acc, appt) => acc + (appt.completedAt! - appt.createdAt), 0) / completedAppointments.length / (1000 * 60) // Convert to minutes
+    : 0
+
+  const finishedAppointments = citasProcesadas + citasCanceladas + citasCompletadas
+  const tasaCompletacion = finishedAppointments > 0 
+    ? (citasCompletadas / finishedAppointments) * 100 
+    : 0
+
+  // Count cancellation reasons
+  const motivosCancelacion: { [reason: string]: number } = {}
+  appointments.filter(a => a.status === "cancelada" && a.cancelReason).forEach(a => {
+    const reason = a.cancelReason!
+    motivosCancelacion[reason] = (motivosCancelacion[reason] || 0) + 1
+  })
+
+  return {
+    totalCitas,
+    citasAgendadas,
+    citasProcesadas,
+    citasCanceladas,
+    citasCompletadas,
+    citasHoy,
+    citasEstaSemana,
+    citasEsteMes,
+    promedioTiempoAtencion,
+    tasaCompletacion,
+    motivosCancelacion,
+  }
+}
+
 export function isAuthenticatedBackoffice(): boolean {
   if (typeof window === "undefined") return false
   const user = localStorage.getItem("bbva_backoffice_user")
   return !!user
 }
 
-export function backofficeLogin(username: string): boolean {
+export function backofficeLogin(username: string, password: string): boolean {
   if (typeof window === "undefined") return false
-  // Simple mock login: any non-empty username works
-  if (username) {
+  // Simple mock login: admin/admin123
+  if (username === "admin" && password === "admin123") {
     localStorage.setItem("bbva_backoffice_user", JSON.stringify({ username }))
     return true
   }
