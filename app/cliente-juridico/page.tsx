@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
+import { formSchemaJuridico, FormDataJuridico } from "@/types/form-data";
 import { nanoid } from "nanoid" // For unique IDs
 import {
   getBackofficeSettings,
@@ -51,170 +51,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 
-// Zod Schemas for validation
-const institucionSchema = z.object({
-  nombre: z.string().optional(),
-  registroFiscal: z.string().optional(),
-  sucursal: z.string().optional(),
-  gerente: z.string().optional(),
-  ejecutivo: z.string().optional(),
-})
 
-const identificacionSchema = z.object({
-  registroFiscal: z.string().optional(),
-  razonSocial: z.string().optional(),
-  nombreComercial: z.string().optional(),
-  actividadEconomica: z.string().optional(),
-  actividadEspecifica: z.string().optional(),
-  categoriaEspecial: z.string().optional(),
-  datosRegistro: z
-    .object({
-      nombre: z.string().optional(),
-      numero: z.string().optional(),
-      tomo: z.string().optional(),
-      folio: z.string().optional(),
-      fecha: z.string().optional(),
-      capitalSocial: z.preprocess(
-        (val) => (val === "" ? undefined : Number(val)),
-        z.number().min(0, "Debe ser un número positivo.").optional(),
-      ),
-    })
-    .optional(),
-  ultimaModificacion: z
-    .object({
-      nombre: z.string().optional(),
-      numero: z.string().optional(),
-      tomo: z.string().optional(),
-      folio: z.string().optional(),
-      fecha: z.string().optional(),
-      capitalActual: z.preprocess(
-        (val) => (val === "" ? undefined : Number(val)),
-        z.number().min(0, "Debe ser un número positivo.").optional(),
-      ),
-    })
-    .optional(),
-  entesPublicos: z
-    .object({
-      numeroGaceta: z.string().optional(),
-      fecha: z.string().optional(),
-      autoridadAdscripcion: z.string().optional(),
-      codigoOnt: z.string().optional(),
-    })
-    .optional(),
-  telefonos: z.string().regex(/^\d*$/, "Formato de teléfono inválido.").optional(),
-  sitioWeb: z.string().url("Formato de URL inválido.").optional(),
-  correo: z.string().email("Formato de correo inválido.").optional(),
-  direccion: z
-    .object({
-      edificio: z.string().optional(),
-      piso: z.string().optional(),
-      oficina: z.string().optional(),
-      local: z.string().optional(),
-      calle: z.string().optional(),
-      urbanizacion: z.string().optional(),
-      municipio: z.string().optional(),
-      ciudad: z.string().optional(),
-      estado: z.string().optional(),
-      codigoPostal: z.string().optional(),
-      numeroFax: z.string().optional(),
-    })
-    .optional(),
-})
-
-const economicaSchema = z.object({
-  accionistas: z
-    .array(
-      z.object({
-        nombre: z.string().optional(),
-        documento: z.string().optional(),
-        participacion: z.preprocess(
-          (val) => (val === "" ? undefined : Number(val)),
-          z.number().min(0).max(100).optional(),
-        ),
-      }),
-    )
-    .optional(),
-  representantesLegales: z
-    .array(
-      z.object({
-        nombre: z.string().optional(),
-        documento: z.string().optional(),
-        cargo: z.string().optional(),
-      }),
-    )
-    .optional(),
-  proveedores: z
-    .array(
-      z.object({
-        nombre: z.string().optional(),
-        producto: z.string().optional(),
-        montoMensual: z.preprocess((val) => (val === "" ? undefined : Number(val)), z.number().min(0).optional()),
-      }),
-    )
-    .optional(),
-  clientes: z
-    .array(
-      z.object({
-        nombre: z.string().optional(),
-        producto: z.string().optional(),
-        montoMensual: z.preprocess((val) => (val === "" ? undefined : Number(val)), z.number().min(0).optional()),
-      }),
-    )
-    .optional(),
-  empresasRelacionadas: z
-    .array(
-      z.object({
-        nombre: z.string().optional(),
-        relacion: z.string().optional(),
-      }),
-    )
-    .optional(),
-  referenciasBancarias: z
-    .array(
-      z.object({
-        institucionSectorBancario: z.string().optional(),
-        tipoProducto: z.string().optional(),
-        numeroProducto: z.string().optional(),
-        antiguedad: z.string().optional(),
-      }),
-    )
-    .optional(),
-  subsidiarias: z
-    .object({
-      numeroSubsidiarias: z.preprocess((val) => (val === "" ? undefined : Number(val)), z.number().min(0).optional()),
-      paisMayorPresencia: z.string().optional(),
-      numeroEmpleados: z.preprocess((val) => (val === "" ? undefined : Number(val)), z.number().min(0).optional()),
-      ventasMensuales: z.preprocess((val) => (val === "" ? undefined : Number(val)), z.number().min(0).optional()),
-      ingresosMensuales: z.preprocess((val) => (val === "" ? undefined : Number(val)), z.number().min(0).optional()),
-      egresosMensuales: z.preprocess((val) => (val === "" ? undefined : Number(val)), z.number().min(0).optional()),
-    })
-    .optional(),
-})
-
-const productoSchema = z.object({
-  nombre: z.string().optional(),
-  numeroProducto: z.string().optional(),
-  moneda: z.string().optional(),
-  montoPromedio: z.preprocess(
-    (val) => (val === "" ? undefined : Number(val)),
-    z.number().min(0.01, "Monto promedio mensual debe ser mayor a cero.").optional(),
-  ),
-  transaccionesMensuales: z.preprocess((val) => (val === "" ? undefined : Number(val)), z.number().min(0).optional()),
-  credito: z.preprocess((val) => (val === "" ? undefined : Number(val)), z.number().min(0).optional()),
-  debito: z.preprocess((val) => (val === "" ? undefined : Number(val)), z.number().min(0).optional()),
-  paisOrigen: z.string().optional(),
-  paisDestino: z.string().optional(),
-  usoMonedaVirtual: z.string().optional(),
-})
-
-// Combined schema for overall form validation
-const formSchema = z.object({
-  institucion: institucionSchema,
-  identificacion: identificacionSchema,
-  economica: economicaSchema,
-  producto: productoSchema,
-  // files section is optional and not part of this schema for now
-})
+// (Schemas eliminados, usar sólo formSchemaJuridicoJuridico y FormDataJuridico importados)
 
 // Interface for confirmed appointment data
 interface ConfirmedAppointment {
@@ -237,16 +75,19 @@ interface ClientApplication {
   userId: string
   type: "natural" | "juridica"
   status: "incompleta" | "pendiente_aprobacion" | "aprobada" | "rechazada"
-  formData: z.infer<typeof formSchema>
+  formData: FormDataJuridico
   createdAt: number
   lastUpdated: number
 }
 
+import { useLoading } from "@/app/loading-context";
+
 export default function ClienteJuridicoPage() {
+  const { setLoading } = useLoading();
   const clientType = "juridica" // Define client type for this page
 
   const [userData, setUserData] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(false)
+
   const [showCitaModal, setShowCitaModal] = useState(false)
   const [showAyudaModal, setShowAyudaModal] = useState(false)
   const [showSaveResultModal, setShowSaveResultModal] = useState(false)
@@ -275,7 +116,7 @@ export default function ClienteJuridicoPage() {
   const clientIdFromUrl = searchParams.get("clientId") // Get clientId from URL
 
   // Default values for clearing sections
-  const defaultFormValues: z.infer<typeof formSchema> = useMemo(
+  const defaultFormValues: FormDataJuridico = useMemo(
     () => ({
       institucion: {
         nombre: "",
@@ -352,8 +193,8 @@ export default function ClienteJuridicoPage() {
     trigger, // To manually trigger validation
     getValues, // To get current form values
     reset, // To reset the entire form
-  } = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  } = useForm<FormDataJuridico>({
+    resolver: zodResolver(formSchemaJuridicoJuridico),
     defaultValues: defaultFormValues, // Use empty defaults, load from localStorage if available
     mode: "onChange", // Validate on change for better UX
   })
@@ -476,7 +317,7 @@ export default function ClienteJuridicoPage() {
   )
 
   const isSectionVisible = useCallback(
-    (sectionName: keyof z.infer<typeof formSchema> | "archivos") => {
+    (sectionName: keyof FormDataJuridico | "archivos") => {
       if (!backofficeSettings || !Array.isArray(backofficeSettings.visibleSections)) {
         return true // Default to visible if settings are not fully loaded or structured as expected
       }
@@ -499,7 +340,7 @@ export default function ClienteJuridicoPage() {
   )
 
   const isSectionComplete = useCallback(
-    (tabName: keyof z.infer<typeof formSchema> | "archivos"): boolean => {
+    (tabName: keyof FormDataJuridico | "archivos"): boolean => {
       let hasZodErrors = false
       switch (tabName) {
         case "institucion":
@@ -524,7 +365,7 @@ export default function ClienteJuridicoPage() {
       }
 
       const currentFormData = getValues()
-      const sectionData = currentFormData[tabName as keyof z.infer<typeof formSchema>]
+      const sectionData = currentFormData[tabName as keyof FormDataJuridico]
 
       if (!sectionData && tabName !== "archivos") return false
 
@@ -566,7 +407,7 @@ export default function ClienteJuridicoPage() {
         setUserData({ username: existingClient.userId, name: existingClient.name }) // Set user data for display
         for (const key in existingClient.formData) {
           if (existingClient.formData.hasOwnProperty(key)) {
-            setValue(key as keyof z.infer<typeof formSchema>, existingClient.formData[key], { shouldValidate: true })
+            setValue(key as keyof FormDataJuridico, existingClient.formData[key], { shouldValidate: true })
           }
         }
         toast({
@@ -631,17 +472,14 @@ export default function ClienteJuridicoPage() {
         // Pre-fill form with saved data
         for (const key in data) {
           if (data.hasOwnProperty(key)) {
-            setValue(key as keyof z.infer<typeof formSchema>, data[key], { shouldValidate: true })
+            setValue(key as keyof FormDataJuridico, data[key], { shouldValidate: true });
           }
         }
         toast({
           title: "Borrador cargado",
           description: "Se ha recuperado su progreso de los últimos 5 minutos.",
-        })
-        console.log(`[TRACKING] Borrador de Persona ${clientType} cargado desde memoria.`)
-      } else {
-        localStorage.removeItem(`bbva_${clientType}_draft`)
-        console.log(`[TRACKING] Borrador de Persona ${clientType} expirado y eliminado.`)
+        });
+        console.log(`[TRACKING] Borrador de Persona ${clientType} cargado desde memoria.`);
       }
     } else {
       // If no draft, try to load from client applications (mock data)
@@ -652,7 +490,7 @@ export default function ClienteJuridicoPage() {
       if (existingClient) {
         for (const key in existingClient.formData) {
           if (existingClient.formData.hasOwnProperty(key)) {
-            setValue(key as keyof z.infer<typeof formSchema>, existingClient.formData[key], { shouldValidate: true })
+            setValue(key as keyof FormDataJuridico, existingClient.formData[key], { shouldValidate: true })
           }
         }
         toast({
@@ -667,7 +505,7 @@ export default function ClienteJuridicoPage() {
     }
 
     // Determine the first visible tab after settings are loaded
-    const sectionsOrder: (keyof z.infer<typeof formSchema> | "archivos")[] = [
+    const sectionsOrder: (keyof FormDataJuridico | "archivos")[] = [
       "institucion",
       "identificacion",
       "economica",
@@ -705,7 +543,7 @@ export default function ClienteJuridicoPage() {
       setTimeout(() => {
         setSaveResult({ success: true, message: "Su información ha sido actualizada exitosamente." })
         setShowSaveResultModal(true)
-        setIsLoading(false)
+        setLoading(false)
         console.log("[TRACKING] Datos de Persona Jurídica guardados exitosamente.")
         console.log("[TRACKING] Datos guardados:", data)
 
@@ -715,7 +553,7 @@ export default function ClienteJuridicoPage() {
           ? allClients.find((c) => c.id === clientIdFromUrl)?.userId
           : userData.username
         const targetClientName = clientIdFromUrl
-          ? allClients.find((c) => c.id === clientIdFromUrl)?.name
+          ? allClients.find((c) => c.id === clientIdFromUrl)?.id
           : userData.name
 
         const existingClientIndex = allClients.findIndex(
@@ -727,7 +565,7 @@ export default function ClienteJuridicoPage() {
         const newClientData: ClientApplication = {
           id: existingClientIndex !== -1 ? allClients[existingClientIndex].id : nanoid(),
           userId: targetUserId,
-          name: targetClientName,
+          
           type: "juridica",
           status: existingClientIndex !== -1 ? allClients[existingClientIndex].status : "incompleta", // Preserve status if editing
           formData: data,
@@ -756,7 +594,7 @@ export default function ClienteJuridicoPage() {
         message: "Por favor, complete y corrija todos los campos obligatorios antes de guardar.",
       })
       setShowSaveResultModal(true)
-      setIsLoading(false)
+      setLoading(false)
       console.log("[TRACKING] Guardado de Persona Jurídica fallido: Errores de validación.", errors)
     },
   )
@@ -906,7 +744,7 @@ export default function ClienteJuridicoPage() {
           description: "No se pudo encontrar la agencia seleccionada.",
           variant: "destructive",
         })
-        setIsLoading(false)
+        setLoading(false)
         return
       }
 
@@ -962,7 +800,7 @@ export default function ClienteJuridicoPage() {
 
       // Reset form
       setCitaData({ fecha: "", agenciaId: "", hora: "", mensaje: "" })
-      setIsLoading(false)
+      setLoading(false)
     }, 2000)
   }
 
@@ -994,7 +832,7 @@ export default function ClienteJuridicoPage() {
   }
 
   // Function to clear fields of a specific section
-  const handleClearSection = (sectionName: keyof z.infer<typeof formSchema>) => {
+  const handleClearSection = (sectionName: keyof FormDataJuridico) => {
     const sectionFields = juridicalPersonFieldDefinitions[sectionName].fields
     sectionFields.forEach((field) => {
       const fieldPath = `${sectionName}.${field.key}` as any
@@ -1020,7 +858,7 @@ export default function ClienteJuridicoPage() {
     )
   }
 
-  const getTabIcon = (tabName: keyof z.infer<typeof formSchema> | "archivos") => {
+  const getTabIcon = (tabName: keyof FormDataJuridico | "archivos") => {
     let hasZodErrors = false
     switch (tabName) {
       case "institucion":
@@ -1051,7 +889,7 @@ export default function ClienteJuridicoPage() {
 
   const renderField = useCallback(
     (
-      section: keyof z.infer<typeof formSchema>,
+      section: keyof FormDataJuridico,
       field: string,
       label: string,
       type = "text",
@@ -1119,7 +957,7 @@ export default function ClienteJuridicoPage() {
   )
 
   const visibleTabs = useMemo(() => {
-    const tabs: (keyof z.infer<typeof formSchema> | "archivos")[] = []
+    const tabs: (keyof FormDataJuridico | "archivos")[] = []
     if (isSectionVisible("institucion")) tabs.push("institucion")
     if (isSectionVisible("identificacion")) tabs.push("identificacion")
     if (isSectionVisible("economica")) tabs.push("economica")

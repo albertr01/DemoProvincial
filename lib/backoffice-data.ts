@@ -24,7 +24,7 @@ export interface ClientApplication {
   name: string // Added name for easier display in backoffice
   type: "natural" | "juridica"
   status: "incompleta" | "pendiente_aprobacion" | "aprobada" | "rechazada"
-  formData: any // Use 'any' for now to accommodate both schemas
+  formData: import("@/types/form-data").FormDataNatural | import("@/types/form-data").FormDataJuridico // Tipado estricto para ambos tipos de clientes
   createdAt: number
   lastUpdated: number
   progressPercentage: number // Added progressPercentage
@@ -262,6 +262,9 @@ const defaultBackofficeSettings: BackofficeSettings = {
 }
 
 // Enhanced mock client applications data
+// Tipos estrictos para los datos de formulario de cada tipo de cliente
+import type { FormDataNatural, FormDataJuridico } from "@/types/form-data";
+
 const mockClientApplications: ClientApplication[] = [
   {
     id: "client-1-natural",
@@ -515,7 +518,7 @@ const mockClientApplications: ClientApplication[] = [
     name: "Carlos Mendoza",
     type: "natural",
     status: "rechazada",
-    formData: {},
+    formData: { institutionData: {}, personalData: {}, referenceData: {}, economicData: {}, productData: {} },
     createdAt: Date.now() - 86400000 * 3, // 3 days ago
     lastUpdated: Date.now() - 86400000 * 1, // 1 day ago
     progressPercentage: 90,
@@ -527,7 +530,7 @@ const mockClientApplications: ClientApplication[] = [
     name: "Innovación Tech S.A.",
     type: "juridica",
     status: "incompleta",
-    formData: {},
+    formData: { institutionData: {}, personalData: {}, referenceData: {}, economicData: {}, productData: {} },
     createdAt: Date.now() - 3600000 * 2, // 2 hours ago
     lastUpdated: Date.now() - 3600000 * 1, // 1 hour ago
     progressPercentage: 45,

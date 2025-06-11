@@ -4,6 +4,7 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { useLoading } from "@/app/loading-context"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -60,9 +61,13 @@ export default function LoginPage() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const { toast } = useToast()
+  const { setLoading } = useLoading();
+
+  // Helper para mostrar loader en cualquier acción relevante
+  const showLoader = (message: string) => setLoading(true, message);
+  const hideLoader = () => setLoading(false);
 
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
   const [confirmedAppointment, setConfirmedAppointment] = useState<ConfirmedAppointment | null>(null)
@@ -81,29 +86,30 @@ export default function LoginPage() {
   }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
+    showLoader("Verificando credenciales...");
     e.preventDefault()
     setError("")
-    setIsLoading(true)
+    setLoading(true, "Verificando credenciales...");
     console.log("[TRACKING] Intento de inicio de sesión iniciado.")
 
     // Validation
     if (!username.trim()) {
       setError("El número de documento es obligatorio")
-      setIsLoading(false)
+      setLoading(false);
       console.log("[TRACKING] Inicio de sesión fallido: Número de documento vacío.")
       return
     }
 
     if (!password.trim()) {
       setError("La contraseña es obligatoria")
-      setIsLoading(false)
+      setLoading(false);
       console.log("[TRACKING] Inicio de sesión fallido: Contraseña vacía.")
       return
     }
 
     if (password.length < 8) {
       setError("La contraseña debe tener al menos 8 caracteres")
-      setIsLoading(false)
+      setLoading(false);
       console.log("[TRACKING] Inicio de sesión fallido: Contraseña muy corta.")
       return
     }
@@ -126,7 +132,6 @@ export default function LoginPage() {
               variant: "default",
             })
             console.log(`[TRACKING] Usuario ${user.username} inició sesión y tiene una cita confirmada.`)
-            setIsLoading(false)
             // Do not redirect immediately, let the modal show. The client page will handle disabling.
             localStorage.setItem("bbva_user", JSON.stringify(user)) // Still log in the user
             window.location.href = user.type === "natural" ? "/cliente-natural" : "/cliente-juridico"
@@ -154,8 +159,8 @@ export default function LoginPage() {
         })
         // Tracking: Failed login
         console.log(`[TRACKING] Intento de inicio de sesión fallido para usuario: ${username}`)
+        hideLoader();
       }
-      setIsLoading(false)
     }, 1500)
   }
 
@@ -250,16 +255,8 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 className="w-full bg-blue-900 hover:bg-blue-800 text-white font-medium py-2.5"
-                disabled={isLoading}
               >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Verificando...
-                  </>
-                ) : (
-                  "Iniciar Sesión"
-                )}
+                Iniciar Sesión
               </Button>
             </form>
 

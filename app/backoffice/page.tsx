@@ -27,32 +27,31 @@ import {
   CalendarClock
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useLoading } from "@/app/loading-context";
 
 export default function DashboardPage() {
   const [clientMetrics, setClientMetrics] = useState<ClientTrackingMetrics | null>(null)
   const [appointmentMetrics, setAppointmentMetrics] = useState<AppointmentTrackingMetrics | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { setLoading } = useLoading();
 
   useEffect(() => {
-    setLoading(true)
-    // Simulate loading time
+    setLoading(true, "Cargando dashboard...");
     setTimeout(() => {
-      const clientData = getClientTrackingMetrics()
-      const appointmentData = getAppointmentTrackingMetrics()
-      setClientMetrics(clientData)
-      setAppointmentMetrics(appointmentData)
-      setLoading(false)
-      console.log("[BACKOFFICE_TRACKING] Dashboard cargado con métricas detalladas")
-    }, 500)
+      const clientData = getClientTrackingMetrics();
+      const appointmentData = getAppointmentTrackingMetrics();
+      setClientMetrics(clientData);
+      setAppointmentMetrics(appointmentData);
+      setLoading(false);
+    }, 800);
   }, [])
 
-  if (loading || !clientMetrics || !appointmentMetrics) {
+  if (!clientMetrics || !appointmentMetrics) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-80px)]">
         <Clock className="h-8 w-8 animate-spin text-blue-600" />
         <p className="ml-2">Cargando dashboard...</p>
       </div>
-    )
+    );
   }
 
   // Prepare chart data

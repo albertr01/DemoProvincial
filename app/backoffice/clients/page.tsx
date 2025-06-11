@@ -7,24 +7,24 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getClientApplications, type ClientApplication } from "@/lib/backoffice-data"
-import { Search, Eye, Clock } from "lucide-react"
+import { Search, Eye } from "lucide-react"
+import { useLoading } from "@/app/loading-context"
 
 export default function BackofficeClientsPage() {
   const [clients, setClients] = useState<ClientApplication[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState("all")
-  const [isLoading, setIsLoading] = useState(true)
+
   const router = useRouter()
+  const { setLoading } = useLoading();
 
   useEffect(() => {
-    setIsLoading(true)
-    // Simulate fetching data
+    setLoading(true, "Cargando clientes...");
     setTimeout(() => {
       const fetchedClients = getClientApplications()
       setClients(fetchedClients)
-      setIsLoading(false)
-      console.log("[BACKOFFICE_TRACKING] Página de Gestión de Clientes cargada.")
-    }, 500)
+      setLoading(false)
+    }, 600)
   }, [])
 
   const filteredClients = useMemo(() => {
@@ -61,14 +61,7 @@ export default function BackofficeClientsPage() {
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Clock className="h-8 w-8 animate-spin text-blue-600" />
-        <p className="ml-2 text-blue-900">Cargando clientes...</p>
-      </div>
-    )
-  }
+
 
   return (
     <div className="space-y-8">
@@ -150,7 +143,10 @@ export default function BackofficeClientsPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => router.push(`/backoffice/clients/${client.id}`)}
+                          onClick={() => {
+                           setLoading(true, "Cargando detalle de cliente...");
+                           router.push(`/backoffice/clients/${client.id}`);
+                         }}
                         >
                           <Eye className="h-4 w-4 mr-2" />
                           Ver Detalle

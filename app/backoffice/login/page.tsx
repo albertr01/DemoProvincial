@@ -4,6 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
+import { useLoading } from "@/app/loading-context"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,19 +16,19 @@ import { useRouter } from "next/navigation"
 export default function BackofficeLoginPage() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const router = useRouter()
+  const { setLoading } = useLoading();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
-    setIsLoading(true)
+    setLoading(true, "Verificando credenciales...");
     console.log("[BACKOFFICE_TRACKING] Intento de inicio de sesión de Backoffice iniciado.")
 
     if (!username.trim() || !password.trim()) {
       setError("Usuario y contraseña son obligatorios.")
-      setIsLoading(false)
+      setLoading(false);
       console.log("[BACKOFFICE_TRACKING] Inicio de sesión fallido: Campos vacíos.")
       return
     }
@@ -42,7 +43,7 @@ export default function BackofficeLoginPage() {
         setError("Credenciales incorrectas. Verifique su usuario y contraseña.")
         console.log("[BACKOFFICE_TRACKING] Inicio de sesión de Backoffice fallido: Credenciales incorrectas.")
       }
-      setIsLoading(false)
+      setLoading(false);
     }, 1000)
   }
 
@@ -113,16 +114,9 @@ export default function BackofficeLoginPage() {
               <Button
                 type="submit"
                 className="w-full bg-blue-900 hover:bg-blue-800 text-white font-medium py-2.5"
-                disabled={isLoading}
+                disabled={false}
               >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Verificando...
-                  </>
-                ) : (
-                  "Iniciar Sesión"
-                )}
+                Iniciar Sesión
               </Button>
             </form>
 

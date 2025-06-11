@@ -1,18 +1,19 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { useToast } from "@/hooks/use-toast"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { useToast } from "@/components/ui/use-toast"
+import { formSchemaNatural, FormDataNatural } from "@/types/form-data"
 import * as z from "zod"
-import { nanoid } from "nanoid" // For unique IDs
+import { nanoid } from "nanoid"
 import {
   getBackofficeSettings,
   getClientApplications,
   getConfirmedAppointments,
   ALL_BBVA_AGENCIES,
-} from "@/lib/backoffice-data" // Import ALL_BBVA_AGENCIES
-import { useRouter, useSearchParams } from "next/navigation" // Import useRouter and useSearchParams
+} from "@/lib/backoffice-data"
 import { generateAppointmentConfirmationEmailHtml, generateAppointmentPdfUrl } from "@/lib/email-templates"
 
 import {
@@ -51,95 +52,17 @@ import {
 } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
-// Zod Schemas for validation
-const personalDataSchema = z.object({
-  documentType: z.string().optional(),
-  documentNumber: z.string().optional(),
-  names: z.string().optional(),
-  lastNames: z.string().optional(),
-  birthDate: z.string().optional(),
-  birthPlace: z.string().optional(),
-  nationality: z.string().optional(),
-  gender: z.string().optional(),
-  profession: z.string().optional(),
-  civilStatus: z.string().optional(),
-  phone: z.string().regex(/^\d*$/, "Formato de teléfono inválido.").optional(),
-  address: z.string().optional(),
-  email: z.string().email("Formato de correo inválido.").optional(),
-  housingCondition: z.string().optional(),
-})
 
-const institutionDataSchema = z.object({
-  name: z.string().optional(),
-  fiscalId: z.string().optional(),
-  branch: z.string().optional(),
-  managerName: z.string().optional(),
-  executiveName: z.string().optional(),
-})
 
-const referenceDataSchema = z.object({
-  bankName: z.string().optional(),
-  bankAccountType: z.string().optional(),
-  bankAccountNumber: z.string().optional(),
-  bankAccountYears: z.string().optional(),
-  personalReferenceName: z.string().optional(),
-  personalReferencePhone: z.string().optional(),
-  personalReferenceRelation: z.string().optional(),
-})
 
-const economicDataSchema = z.object({
-  currentOccupation: z.string().optional(),
-  companyName: z.string().optional(),
-  position: z.string().optional(),
-  yearsInCompany: z.string().optional(),
-  companyPhone: z.string().optional(),
-  companyAddress: z.string().optional(),
-  monthlyIncome: z.preprocess(
-    (val) => (val === "" ? undefined : Number(val)), // Convert empty string to undefined for optional number
-    z.number().min(0, "Ingresos mensuales deben ser un número positivo.").optional(),
-  ),
-  otherIncome: z.preprocess(
-    (val) => (val === "" ? undefined : Number(val)),
-    z.number().min(0, "Otros ingresos deben ser un número positivo.").optional(),
-  ),
-  totalIncome: z.preprocess(
-    (val) => (val === "" ? undefined : Number(val)),
-    z
-      .number()
-      .min(0)
-      .optional(), // Total income can be 0
-  ),
-})
 
-const productDataSchema = z.object({
-  productType: z.string().optional(),
-  currency: z.string().optional(),
-  averageMonthlyAmount: z.preprocess(
-    (val) => (val === "" ? undefined : Number(val)),
-    z.number().min(0.01, "Monto promedio mensual debe ser mayor a cero.").optional(),
-  ),
-  fundsOrigin: z.string().optional(),
-  accountPurpose: z.string().optional(),
-  estimatedMonthlyTransactions: z.preprocess(
-    (val) => (val === "" ? undefined : Number(val)),
-    z.number().min(0, "Transacciones estimadas deben ser un número positivo.").optional(),
-  ),
-  averageTransactionAmount: z.preprocess(
-    (val) => (val === "" ? undefined : Number(val)),
-    z.number().min(0, "Monto promedio por transacción debe ser un número positivo.").optional(),
-  ),
-  internationalTransactions: z.string().optional(),
-})
 
-// Combined schema for overall form validation
-const formSchema = z.object({
-  institutionData: institutionDataSchema,
-  personalData: personalDataSchema,
-  referenceData: referenceDataSchema,
-  economicData: economicDataSchema,
-  productData: productDataSchema,
-  // files section is optional and not part of this schema for now
-})
+
+
+
+
+
+
 
 // Interface for confirmed appointment data
 interface ConfirmedAppointment {
@@ -160,11 +83,13 @@ interface ConfirmedAppointment {
 interface ClientApplication {
   id: string
   userId: string
+  name: string; // Added to match backoffice data structure
   type: "natural" | "juridica"
   status: "incompleta" | "pendiente_aprobacion" | "aprobada" | "rechazada"
-  formData: z.infer<typeof formSchema>
+  formData: FormDataNatural
   createdAt: number
   lastUpdated: number
+  progressPercentage: number; // Added to match backoffice data structure
 }
 
 // Field definitions for each section
@@ -236,44 +161,95 @@ const naturalPersonFieldDefinitions = {
       { key: "averageTransactionAmount", label: "MONTO PROMEDIO POR TRANSACCIÓN (USD)" },
       { key: "internationalTransactions", label: "¿REALIZARÁ TRANSACCIONES INTERNACIONALES?" },
     ],
-  },
-}
+
 
 export default function ClienteNaturalPage() {
-  const clientType = "natural" // Define client type for this page
-
-  const [userData, setUserData] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [showCitaModal, setShowCitaModal] = useState(false)
-  const [showAyudaModal, setShowAyudaModal] = useState(false)
-  const [showSaveResultModal, setShowSaveResultModal] = useState(false) // Corrected state declaration
-  const [saveResult, setSaveResult] = useState({ success: false, message: "" })
-  const [showCitaConfirmModal, setShowCitaConfirmModal] = useState(false)
-  const [citaConfirmDetails, setCitaConfirmDetails] = useState<ConfirmedAppointment>({
-    // Corrected state declaration
+  // State for loading and UI
+  const [isLoading, setIsLoading] = useState(false);
+  const [userData, setUserData] = useState<any>(null);
+  const [progressPercentage, setProgressPercentage] = useState(0);
+  const [activeTab, setActiveTab] = useState<string>("institucion");
+  
+  // Form and submission state
+  const [saveResult, setSaveResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [showSaveResultModal, setShowSaveResultModal] = useState(false);
+  
+  // Appointment scheduling state
+  const [citaData, setCitaData] = useState({
+    fecha: "",
+    agenciaId: "",
+    hora: "",
+    mensaje: "",
+  });
+  
+  const [showCitaModal, setShowCitaModal] = useState(false);
+  const [showCitaConfirmModal, setShowCitaConfirmModal] = useState(false);
+  const [hasConfirmedAppointment, setHasConfirmedAppointment] = useState(false);
+  const [horariosDisponibles, setHorariosDisponibles] = useState<string[]>([]);
+  const [unavailableMessage, setUnavailableMessage] = useState("");
+  
+  const [availableAgenciesForDate, setAvailableAgenciesForDate] = useState<
+    Array<{ id: string; nombre: string; direccion: string }>
+  >([]);
+  
+  const [citaConfirmDetails, setCitaConfirmDetails] = useState<ConfirmedAppointment | null>({
+    id: "",
+    userId: "",
+    clientType: "natural",
     fecha: "",
     hora: "",
     agenciaNombre: "",
     agenciaDireccion: "",
     clientEmail: "",
-    bankEmail: "citas@bbva.com", // Simulated bank email
-    id: "", // Will be set by nanoid
-    userId: "", // Will be set by userData.username
-    clientType: "natural", // Explicitly set
-    createdAt: 0, // Will be set by Date.now()
-    pdfUrl: "",
-  })
-  const [backofficeSettings, setBackofficeSettings] = useState(() => getBackofficeSettings()) // Initialize once
-  const [hasConfirmedAppointment, setHasConfirmedAppointment] = useState(false) // New state for appointment lock
-  const [activeTab, setActiveTab] = useState<string>("institucion") // Default to first tab, will be updated dynamically
+    bankEmail: "citas@bbva.com",
+    createdAt: 0,
+  });
+  
+  // Backoffice settings state
+  const [backofficeSettings, setBackofficeSettings] = useState({
+    enabledClientTypes: { natural: true, juridica: true },
+    agencies: [],
+    fieldVisibility: {
+      institutionData: {},
+      personalData: {},
+      referenceData: {},
+      economicData: {},
+      economicActivity: {},
+      taxData: {},
+      bankData: {},
+      additionalData: {},
+      documents: {},
+    },
+  });
 
-  const { toast } = useToast()
-  const router = useRouter()
-  const searchParams = useSearchParams() // Get search params
-  const clientIdFromUrl = searchParams.get("clientId") // Get clientId from URL
+  // Hooks
+  const { toast } = useToast();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const clientIdFromUrl = searchParams.get("id");
+  const clientType: "natural" | "juridica" = "natural";
+
+  // Form handling with React Hook Form and Zod validation
+  const { 
+    register, 
+    handleSubmit, 
+    setValue, 
+    getValues, 
+    watch, 
+    trigger, 
+    formState: { errors } 
+  } = useForm<FormDataNatural>({
+    resolver: zodResolver(formSchemaNatural),
+    defaultValues: defaultFormValues,
+    mode: "onChange",
+  });
+
+  // Watch form data for side effects
+  const watchedFormData = watch();
+  const watchedEconomicData = watch("economicData");
 
   // Default values for clearing sections - DEFINED BEFORE useForm
-  const defaultFormValues: z.infer<typeof formSchema> = useMemo(
+  const defaultFormValues: FormDataNatural = useMemo(
     () => ({
       institutionData: {
         name: "",
@@ -342,8 +318,8 @@ export default function ClienteNaturalPage() {
     trigger, // To manually trigger validation
     getValues, // To get current form values
     reset, // To reset the entire form
-  } = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  } = useForm<FormDataNatural>({
+    resolver: zodResolver(formSchemaNatural),
     defaultValues: defaultFormValues, // Use empty defaults, load from localStorage if available
     mode: "onChange", // Validate on change for better UX
   })
@@ -352,23 +328,9 @@ export default function ClienteNaturalPage() {
   const watchedPersonalDataEmail = watch("personalData.email")
   const watchedFormData = watch() // Watch all form data for saving to local storage
 
-  const [citaData, setCitaData] = useState({
-    fecha: "",
-    agenciaId: "", // Changed to agenciaId
-    hora: "",
-    mensaje: "",
-  })
-
-  // Horarios disponibles para citas
-  const [horariosDisponibles, setHorariosDisponibles] = useState<string[]>([])
-  const [availableAgenciesForDate, setAvailableAgenciesForDate] = useState<
-    { id: string; nombre: string; direccion: string }[]
-  >([])
-  const [unavailableMessage, setUnavailableMessage] = useState<string>("")
-
   // Helper to check if a field is visible based on backoffice settings
   const isFieldVisible = useCallback(
-    (section: string, field: string) => {
+    (section: keyof FormDataNatural, field: string) => {
       // Ensure backofficeSettings and its nested properties are defined
       if (!backofficeSettings || !backofficeSettings.fieldVisibility || !backofficeSettings.fieldVisibility.natural) {
         return true // Default to visible if settings are not fully loaded or structured as expected
@@ -382,7 +344,7 @@ export default function ClienteNaturalPage() {
 
   // Helper to determine if a section (tab) should be visible
   const isSectionVisible = useCallback(
-    (sectionName: keyof z.infer<typeof formSchema> | "archivos") => {
+    (sectionName: keyof z.infer<typeof formSchemaNatural> | "archivos") => {
       // Ensure backofficeSettings and visibleSections are defined and visibleSections is an array
       if (!backofficeSettings || !Array.isArray(backofficeSettings.visibleSections)) {
         // If settings are not fully loaded or visibleSections is not an array,
@@ -414,7 +376,7 @@ export default function ClienteNaturalPage() {
 
   // Helper to determine if a section is "complete" based on key fields having values AND being visible
   const isSectionComplete = useCallback(
-    (tabName: keyof z.infer<typeof formSchema> | "archivos"): boolean => {
+    (tabName: keyof FormDataNatural | "archivos"): boolean => {
       let hasZodErrors = false
       switch (tabName) {
         case "institutionData":
@@ -442,7 +404,7 @@ export default function ClienteNaturalPage() {
       }
 
       // Add custom logic to determine if a section is complete based on visible fields
-      const currentData = getValues()[tabName as keyof z.infer<typeof formSchema>]
+      const currentData = getValues()[tabName as keyof z.infer<typeof formSchemaNatural>]
       if (!currentData && tabName !== "archivos") return false
 
       let requiredFields: string[] = []
@@ -537,7 +499,7 @@ export default function ClienteNaturalPage() {
   // Calculate progress percentage using useMemo to prevent excessive re-renders
   const progressPercentage = useMemo(() => {
     let completedSections = 0
-    const sectionsToCheck: (keyof z.infer<typeof formSchema> | "archivos")[] = [
+    const sectionsToCheck: (keyof z.infer<typeof formSchemaNatural> | "archivos")[] = [
       "institutionData",
       "personalData",
       "referenceData",
@@ -566,39 +528,39 @@ export default function ClienteNaturalPage() {
   useEffect(() => {
     // If clientId is present in URL, it means we are editing from backoffice
     if (clientIdFromUrl) {
-      const allClients = getClientApplications()
-      const existingClient = allClients.find((client) => client.id === clientIdFromUrl && client.type === clientType)
+      const allClients = getClientApplications();
+      const existingClient = allClients.find((client) => client.id === clientIdFromUrl && client.type === clientType);
+
       if (existingClient) {
-        setUserData({ username: existingClient.userId, name: existingClient.name }) // Set user data for display
-        for (const key in existingClient.formData) {
-          if (existingClient.formData.hasOwnProperty(key)) {
-            setValue(key as keyof z.infer<typeof formSchema>, existingClient.formData[key], { shouldValidate: true })
-          }
-        }
+        setUserData(existingClient.userId);
+        const naturalFormData = existingClient.formData as FormDataNatural;
+        (Object.keys(naturalFormData) as Array<keyof FormDataNatural>).forEach((key) => {
+          setValue(key, naturalFormData[key], { shouldValidate: true });
+        });
         toast({
           title: "Datos de cliente cargados para edición",
           description: "Se han cargado los datos del cliente para su modificación.",
-        })
-        console.log(`[TRACKING] Datos de Persona Natural cargados desde backoffice para edición: ${clientIdFromUrl}.`)
+        });
+        console.log(`[TRACKING] Datos de Persona Natural cargados desde backoffice para edición: ${clientIdFromUrl}.`);
       } else {
         toast({
           title: "Cliente no encontrado",
           description: "No se pudieron cargar los datos del cliente para edición.",
           variant: "destructive",
-        })
-        router.push("/backoffice/clients") // Redirect if client not found
+        });
+        router.push("/backoffice/clients");
       }
-      return // Exit early if editing from backoffice
+      return; // Exit early if editing from backoffice
     }
 
     // Normal client-side flow
-    const user = localStorage.getItem("bbva_user")
+    const user = localStorage.getItem("bbva_user");
     if (!user) {
-      router.push("/")
-      return
+      router.push("/");
+      return;
     }
     setUserData(JSON.parse(user))
-    console.log(`[TRACKING] Aplicación de Persona Natural iniciada para: ${JSON.parse(user).name}`)
+    console.log(`[TRACKING] Aplicación de Persona Natural iniciada para: ${JSON.parse(user).username}`)
 
     // Check if this client type is enabled from backoffice settings
     if (!backofficeSettings.enabledClientTypes.natural) {
@@ -637,7 +599,7 @@ export default function ClienteNaturalPage() {
         // Pre-fill form with saved data
         for (const key in data) {
           if (data.hasOwnProperty(key)) {
-            setValue(key as keyof z.infer<typeof formSchema>, data[key], { shouldValidate: true })
+            setValue(key as keyof z.infer<typeof formSchemaNatural>, data[key], { shouldValidate: true })
           }
         }
         toast({
@@ -658,7 +620,7 @@ export default function ClienteNaturalPage() {
       if (existingClient) {
         for (const key in existingClient.formData) {
           if (existingClient.formData.hasOwnProperty(key)) {
-            setValue(key as keyof z.infer<typeof formSchema>, existingClient.formData[key], { shouldValidate: true })
+            setValue(key as keyof z.infer<typeof formSchemaNatural>, existingClient.formData[key], { shouldValidate: true })
           }
         }
         toast({
@@ -673,7 +635,7 @@ export default function ClienteNaturalPage() {
     }
 
     // Determine the first visible tab after settings are loaded
-    const sectionsOrder: (keyof z.infer<typeof formSchema> | "archivos")[] = [
+    const sectionsOrder: (keyof z.infer<typeof formSchemaNatural> | "archivos")[] = [
       "institutionData",
       "personalData",
       "referenceData",
@@ -711,14 +673,14 @@ export default function ClienteNaturalPage() {
 
   const handleSave = handleSubmit(
     async (data) => {
-      setIsLoading(true)
+      setLoading(true)
       console.log("[TRACKING] Intento de guardar datos de Persona Natural iniciado.")
 
       // Simulate saving data
       setTimeout(() => {
         setSaveResult({ success: true, message: "Su información ha sido actualizada exitosamente." })
         setShowSaveResultModal(true)
-        setIsLoading(false)
+        setLoading(false)
         console.log("[TRACKING] Datos de Persona Natural guardados exitosamente.")
         console.log("[TRACKING] Datos guardados:", data)
 
@@ -727,20 +689,16 @@ export default function ClienteNaturalPage() {
         const targetUserId = clientIdFromUrl
           ? allClients.find((c) => c.id === clientIdFromUrl)?.userId
           : userData.username
-        const targetClientName = clientIdFromUrl
-          ? allClients.find((c) => c.id === clientIdFromUrl)?.name
-          : userData.name
-
         const existingClientIndex = allClients.findIndex(
           (client) =>
             (clientIdFromUrl ? client.id === clientIdFromUrl : client.userId === targetUserId) &&
             client.type === "natural",
         )
 
-        const newClientData: ClientApplication = {
+                const newClientData: ClientApplication = {
           id: existingClientIndex !== -1 ? allClients[existingClientIndex].id : nanoid(),
           userId: targetUserId,
-          name: targetClientName,
+          name: `${data.personalData.names} ${data.personalData.lastNames}`.trim(), // Construct name from form data
           type: "natural",
           status: existingClientIndex !== -1 ? allClients[existingClientIndex].status : "incompleta", // Preserve status if editing
           formData: data,
@@ -769,7 +727,7 @@ export default function ClienteNaturalPage() {
         message: "Por favor, complete y corrija todos los campos obligatorios antes de guardar.",
       })
       setShowSaveResultModal(true)
-      setIsLoading(false)
+      setLoading(false)
       console.log("[TRACKING] Guardado de Persona Natural fallido: Errores de validación.", errors)
     },
   )
@@ -904,14 +862,14 @@ export default function ClienteNaturalPage() {
       return
     }
 
-    setIsLoading(true)
+    setLoading(true)
     console.log("[TRACKING] Confirmación de cita de Persona Natural iniciada.")
 
     // Simulate API call
     setTimeout(() => {
       const agenciaSeleccionadaDetails = ALL_BBVA_AGENCIES.find((a) => a.id === citaData.agenciaId)
       const clientEmail = watchedPersonalDataEmail || "correo.cliente@ejemplo.com" // Use actual email or fallback
-      const clientName = userData.name || "Cliente" // Get client name
+      const clientName = userData || "Cliente" // Get client name
 
       if (!agenciaSeleccionadaDetails) {
         toast({
@@ -919,7 +877,7 @@ export default function ClienteNaturalPage() {
           description: "No se pudo encontrar la agencia seleccionada.",
           variant: "destructive",
         })
-        setIsLoading(false)
+        setLoading(false)
         return
       }
 
@@ -975,7 +933,7 @@ export default function ClienteNaturalPage() {
 
       // Reset form
       setCitaData({ fecha: "", agenciaId: "", hora: "", mensaje: "" })
-      setIsLoading(false)
+      setLoading(false)
     }, 2000)
   }
 
@@ -1007,7 +965,7 @@ export default function ClienteNaturalPage() {
   }
 
   // Function to clear fields of a specific section
-  const handleClearSection = (sectionName: keyof z.infer<typeof formSchema>) => {
+  const handleClearSection = (sectionName: keyof FormDataNatural) => {
     const sectionFields = naturalPersonFieldDefinitions[sectionName].fields
     sectionFields.forEach((field) => {
       const fieldPath = `${sectionName}.${field.key}` as any
@@ -1022,7 +980,7 @@ export default function ClienteNaturalPage() {
     console.log(`[TRACKING] Campos de la sección "${sectionName}" limpiados.`)
   }
 
-  const getTabIcon = (tabName: keyof z.infer<typeof formSchema> | "archivos") => {
+  const getTabIcon = (tabName: keyof FormDataNatural | "archivos") => {
     let hasZodErrors = false
     switch (tabName) {
       case "institutionData":
@@ -1055,7 +1013,7 @@ export default function ClienteNaturalPage() {
   }
 
   const renderField = (
-    section: keyof z.infer<typeof formSchema>,
+    section: keyof FormDataNatural,
     field: string,
     label: string,
     type = "text",
@@ -1141,7 +1099,7 @@ export default function ClienteNaturalPage() {
             <div className="bg-white text-blue-900 px-3 py-1 rounded font-bold">BBVA</div>
             <div>
               <h1 className="text-xl font-bold">Ficha de Cliente - Persona Natural</h1>
-              <p className="text-blue-200">Bienvenido/a {userData.name}</p>
+              <p className="text-blue-200">Bienvenido/a {userData}</p>
             </div>
           </div>
           {/* Moved logout button to top right and styled */}

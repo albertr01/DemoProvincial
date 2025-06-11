@@ -3,6 +3,8 @@ import type { Metadata } from "next"
 import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from "@/components/theme-provider"
+import { LoadingProvider } from "./loading-context"
+import GlobalLoader from "./global-loader"
 
 export const metadata: Metadata = {
   title: "BBVA Provincial",
@@ -16,13 +18,16 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <body>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          {children}
-          <Toaster />
-        </ThemeProvider>
+        <LoadingProvider>
+          <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+            {children}
+            <Toaster />
+            <GlobalLoader />
+          </ThemeProvider>
+        </LoadingProvider>
       </body>
     </html>
-  )
+  );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useLoading } from "@/app/loading-context"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
@@ -28,7 +29,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 export default function BackofficeParametrizationPage() {
   const [settings, setSettings] = useState<BackofficeSettings>(getBackofficeSettings())
-  const [isLoading, setIsLoading] = useState(false)
+  // Local isLoading removed; now using only global loader
+  const { setLoading } = useLoading();
+  const [isSaving, setIsSaving] = useState(false);
+
   const [showSaveSuccessModal, setShowSaveSuccessModal] = useState(false)
 
   useEffect(() => {
@@ -37,14 +41,16 @@ export default function BackofficeParametrizationPage() {
   }, [])
 
   const handleSaveSettings = () => {
-    setIsLoading(true)
-    console.log("[BACKOFFICE_TRACKING] Intento de guardar configuración de Backoffice.")
+    setIsSaving(true);
+    setLoading(true, "Guardando parámetros...");
+    console.log("[BACKOFFICE_TRACKING] Intento de guardar configuración de Backoffice.");
     setTimeout(() => {
-      saveBackofficeSettings(settings)
-      setIsLoading(false)
-      setShowSaveSuccessModal(true)
-      console.log("[BACKOFFICE_TRACKING] Configuración de Backoffice guardada exitosamente.", settings)
-    }, 1000)
+      saveBackofficeSettings(settings);
+      setLoading(false);
+      setIsSaving(false);
+      setShowSaveSuccessModal(true);
+      console.log("[BACKOFFICE_TRACKING] Configuración de Backoffice guardada exitosamente.", settings);
+    }, 1000);
   }
 
   const handleAddAgency = (agencyId: string) => {
@@ -498,18 +504,9 @@ export default function BackofficeParametrizationPage() {
       </Tabs>
 
       <div className="flex justify-end">
-        <Button onClick={handleSaveSettings} disabled={isLoading}>
-          {isLoading ? (
-            <>
-              <Clock className="mr-2 h-4 w-4 animate-spin" />
-              Guardando...
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4 mr-2" />
-              Guardar Parámetros
-            </>
-          )}
+        <Button onClick={handleSaveSettings} disabled={isSaving}>
+          <Save className="h-4 w-4 mr-2" />
+          Guardar Parámetros
         </Button>
       </div>
 
